@@ -1,12 +1,9 @@
 import * as React from "react";
-import {
-  Animated,
-  FlatList,
-  ListRenderItemInfo,
-  StyleSheet,
-  View,
-} from "react-native";
-import ExpandingDot from "./src/ExpandingDot";
+import { ListRenderItemInfo, StyleSheet, View } from "react-native";
+
+import PagingList from "./src/PagingList";
+import ExpandingDot from './src/ExpandingDot';
+import LiquidLikeDot from './src/LiquidLikeDot';
 import ScalingDot from "./src/ScalingDot";
 import SlidingBorder from "./src/SlidingBorder";
 import SlidingDot from "./src/SlidingDot";
@@ -26,49 +23,25 @@ const COLORS: string[] = [
 ];
 
 export default function App() {
-  const scrollX = React.useRef(new Animated.Value(0)).current;
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
-
   const renderItem = ({ item }: ListRenderItemInfo<string>) => (
     <View
-      style={{
-        width: 300,
-        height: 300,
+      style={[{
         backgroundColor: item,
-      }}
+      }, StyleSheet.absoluteFill]}
     />
   );
 
-  const paginationProps = {
-    data: COLORS,
-    scrollX,
-    pageWidth: 300,
-    style: styles.pagination,
-  };
-
   return (
     <View style={styles.container}>
-      <FlatList
+      <PagingList
         data={COLORS}
         keyExtractor={keyExtractor}
-        showsHorizontalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
-        )}
-        pagingEnabled
-        horizontal
         renderItem={renderItem}
-        scrollEventThrottle={16}
-        style={{
-          maxHeight: 300,
-          width: 300,
-        }}
+        pagination={{ component: SlidingDot, horizontal: false, location: "right" }}
+        style={{ maxHeight: 300, maxWidth: 300, width: 300 }}
+        horizontal={false}
       />
-      <ScalingDot {...paginationProps} />
-      <SlidingBorder {...paginationProps} />
-      <ExpandingDot {...paginationProps} />
-      <SlidingDot {...paginationProps} />
     </View>
   );
 }
@@ -79,8 +52,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#525252",
     alignItems: "center",
     paddingTop: 40,
-  },
-  pagination: {
-    margin: 5,
   },
 });

@@ -8,10 +8,9 @@ import {
   ViewStyle,
 } from "react-native";
 
-export type SlidingBorderProps = {
-  data: any[];
-  scrollX: Animated.Value;
-  pageWidth: number;
+import { PaginationProps } from "./types";
+
+export interface SlidingBorderProps extends PaginationProps {
   dotSize?: number;
   visibleDots?: number;
   borderPadding?: number;
@@ -19,10 +18,12 @@ export type SlidingBorderProps = {
   activeDotColor?: string;
   inactiveDotColor?: string;
   borderColor?: string;
-  style?: StyleProp<ViewStyle>;
-};
+}
 
-const DEFAULTS: Omit<SlidingBorderProps, "data" | "scrollX" | "pageWidth"> = {
+const DEFAULTS: Omit<
+  SlidingBorderProps,
+  keyof Omit<PaginationProps, "horizontal">
+> = {
   dotSize: 8,
   visibleDots: 5,
   borderPadding: 2,
@@ -30,13 +31,17 @@ const DEFAULTS: Omit<SlidingBorderProps, "data" | "scrollX" | "pageWidth"> = {
   activeDotColor: "#fff",
   inactiveDotColor: "#fff",
   borderColor: "#fff",
+  horizontal: true,
 };
 
 export default function SlidingBorder(props: SlidingBorderProps) {
   const {
     data,
-    scrollX,
+    offset,
     pageWidth,
+    pageHeight,
+    horizontal,
+    listHorizontal,
     dotSize,
     visibleDots,
     borderPadding,
@@ -62,14 +67,21 @@ export default function SlidingBorder(props: SlidingBorderProps) {
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      {
-        height: borderSize,
-        maxHeight: borderSize,
-        width: Math.min(visibleDots, data.length) * borderSize,
-        maxWidth: Math.min(visibleDots, data.length) * borderSize,
-      },
+      horizontal
+        ? {
+            height: borderSize,
+            maxHeight: borderSize,
+            width: Math.min(visibleDots, data.length) * borderSize,
+            maxWidth: Math.min(visibleDots, data.length) * borderSize,
+          }
+        : {
+            height: Math.min(visibleDots, data.length) * borderSize,
+            maxHeight: Math.min(visibleDots, data.length) * borderSize,
+            width: borderSize,
+            maxWidth: borderSize,
+          },
     ],
-    [dotSize, visibleDots, borderPadding, style, data]
+    [horizontal, dotSize, visibleDots, borderPadding, style, data]
   );
   const dotContainerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => ({
@@ -82,18 +94,18 @@ export default function SlidingBorder(props: SlidingBorderProps) {
   );
 
   const listRef = React.useRef<FlatList>(null);
-  const translateX = React.useRef(new Animated.Value(0)).current;
+  const translate = React.useRef(new Animated.Value(0)).current;
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
 
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
       const inputRange = [
-        (index - 1) * pageWidth,
-        index * pageWidth,
-        (index + 1) * pageWidth,
+        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
+        index * (listHorizontal ? pageWidth : pageHeight),
+        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
       ];
 
-      const color = scrollX.interpolate({
+      const color = offset.interpolate({
         inputRange,
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
@@ -114,19 +126,28 @@ export default function SlidingBorder(props: SlidingBorderProps) {
         </View>
       );
     },
-    [pageWidth, dotSize, activeDotColor, inactiveDotColor]
+    [
+      pageWidth,
+      pageHeight,
+      listHorizontal,
+      dotSize,
+      activeDotColor,
+      inactiveDotColor,
+    ]
   );
 
   React.useEffect(() => {
-    scrollX.addListener(({ value }) => {
+    const listenerId = offset.addListener(({ value }) => {
       if (!listRef.current) return;
 
-      const pageIdx = value / pageWidth;
+      const pageIdx = value / (listHorizontal ? pageWidth : pageHeight);
 
       if (data.length <= visibleDots || pageIdx < scrollThreshhold) {
-        translateX.setValue(pageIdx * borderSize);
-      } else if (pageIdx - scrollThreshhold > data.length - visibleDots) {
-        translateX.setValue((pageIdx - (visibleDots + 1)) * borderSize);
+        translate.setValue(pageIdx * borderSize);
+      } else if (pageIdx > data.length - 1 - scrollThreshhold) {
+        translate.setValue(
+          (pageIdx - (data.length - visibleDots)) * borderSize
+        );
       }
 
       listRef.current.scrollToOffset({
@@ -134,7 +155,9 @@ export default function SlidingBorder(props: SlidingBorderProps) {
         offset: Math.max(0, (pageIdx - scrollThreshhold) * borderSize),
       });
     });
-  }, [pageWidth, data, visibleDots, borderSize]);
+
+    return () => offset.removeListener(listenerId);
+  }, [pageWidth, pageHeight, listHorizontal, data, visibleDots, borderSize]);
 
   return (
     <View style={containerStyle}>
@@ -146,7 +169,9 @@ export default function SlidingBorder(props: SlidingBorderProps) {
           borderRadius: borderSize / 2,
           borderWidth: borderWidth,
           borderColor: borderColor,
-          transform: [{ translateX }],
+          transform: [
+            horizontal ? { translateX: translate } : { translateY: translate },
+          ],
         }}
       />
       <FlatList
@@ -154,7 +179,7 @@ export default function SlidingBorder(props: SlidingBorderProps) {
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        horizontal={true}
+        horizontal={horizontal}
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}

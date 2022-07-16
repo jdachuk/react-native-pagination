@@ -8,10 +8,9 @@ import {
   ViewStyle,
 } from "react-native";
 
-export type ScalingDotProps = {
-  data: any[];
-  scrollX: Animated.Value;
-  pageWidth: number;
+import { PaginationProps } from "./types";
+
+export interface ScalingDotProps extends PaginationProps {
   dotSize?: number;
   dotMargin?: number;
   visibleDots?: number;
@@ -21,10 +20,12 @@ export type ScalingDotProps = {
   inactiveDotOpacity?: number;
   dotOpacityExtrapolate?: "clamp" | "extend";
   dotScaleExtrapolate?: "clamp" | "extend";
-  style?: StyleProp<ViewStyle>;
-};
+}
 
-const DEFAULTS: Omit<ScalingDotProps, "data" | "scrollX" | "pageWidth"> = {
+const DEFAULTS: Omit<
+  ScalingDotProps,
+  keyof Omit<PaginationProps, "horizontal">
+> = {
   dotSize: 10,
   dotMargin: 2,
   visibleDots: 5,
@@ -34,13 +35,17 @@ const DEFAULTS: Omit<ScalingDotProps, "data" | "scrollX" | "pageWidth"> = {
   inactiveDotOpacity: 0.75,
   dotOpacityExtrapolate: "extend",
   dotScaleExtrapolate: "extend",
+  horizontal: true,
 };
 
 export default function ScalingDot(props: ScalingDotProps) {
   const {
     data,
-    scrollX,
+    offset,
     pageWidth,
+    pageHeight,
+    horizontal,
+    listHorizontal,
     dotSize,
     dotMargin,
     visibleDots,
@@ -68,14 +73,21 @@ export default function ScalingDot(props: ScalingDotProps) {
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      {
-        height: dotSize * activeDotScale,
-        maxHeight: dotSize * activeDotScale,
-        width: Math.min(visibleDots, data.length) * fullDotSize,
-        maxWidth: Math.min(visibleDots, data.length) * fullDotSize,
-      },
+      horizontal
+        ? {
+            height: dotSize * activeDotScale,
+            maxHeight: dotSize * activeDotScale,
+            width: Math.min(visibleDots, data.length) * fullDotSize,
+            maxWidth: Math.min(visibleDots, data.length) * fullDotSize,
+          }
+        : {
+            height: Math.min(visibleDots, data.length) * fullDotSize,
+            maxHeight: Math.min(visibleDots, data.length) * fullDotSize,
+            width: dotSize * activeDotScale,
+            maxWidth: dotSize * activeDotScale,
+          },
     ],
-    [dotSize, dotMargin, visibleDots, style, activeDotScale, data]
+    [horizontal, dotSize, dotMargin, visibleDots, style, activeDotScale, data]
   );
 
   const listRef = React.useRef<FlatList>(null);
@@ -84,22 +96,22 @@ export default function ScalingDot(props: ScalingDotProps) {
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
       const inputRange = [
-        (index - 1) * pageWidth,
-        index * pageWidth,
-        (index + 1) * pageWidth,
+        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
+        index * (listHorizontal ? pageWidth : pageHeight),
+        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
       ];
 
-      const opacity = scrollX.interpolate({
+      const opacity = offset.interpolate({
         inputRange,
         outputRange: [inactiveDotOpacity, 1, inactiveDotOpacity],
         extrapolate: dotOpacityExtrapolate,
       });
-      const scale = scrollX.interpolate({
+      const scale = offset.interpolate({
         inputRange,
         outputRange: [1, activeDotScale, 1],
         extrapolate: dotScaleExtrapolate,
       });
-      const color = scrollX.interpolate({
+      const color = offset.interpolate({
         inputRange,
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
@@ -115,15 +127,20 @@ export default function ScalingDot(props: ScalingDotProps) {
               height: dotSize,
               borderRadius: dotSize / 2,
               backgroundColor: color,
-              marginHorizontal: dotMargin,
               alignSelf: "center",
             },
+            horizontal
+              ? { marginHorizontal: dotMargin }
+              : { marginVertical: dotMargin },
           ]}
         />
       );
     },
     [
       pageWidth,
+      pageHeight,
+      horizontal,
+      listHorizontal,
       dotSize,
       dotMargin,
       activeDotColor,
@@ -136,18 +153,19 @@ export default function ScalingDot(props: ScalingDotProps) {
   );
 
   React.useEffect(() => {
-    scrollX.addListener(({ value }) => {
+    const listenerId = offset.addListener(({ value }) => {
       if (!listRef.current) return;
+
+      const pageIdx = value / (listHorizontal ? pageWidth : pageHeight);
 
       listRef.current.scrollToOffset({
         animated: false,
-        offset: Math.max(
-          0,
-          (value / pageWidth - scrollThreshhold) * fullDotSize
-        ),
+        offset: Math.max(0, (pageIdx - scrollThreshhold) * fullDotSize),
       });
     });
-  }, [pageWidth, scrollThreshhold, fullDotSize]);
+
+    return () => offset.removeListener(listenerId);
+  }, [pageWidth, pageHeight, listHorizontal, scrollThreshhold, fullDotSize]);
 
   return (
     <View style={containerStyle}>
@@ -156,7 +174,7 @@ export default function ScalingDot(props: ScalingDotProps) {
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        horizontal={true}
+        horizontal={horizontal}
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}

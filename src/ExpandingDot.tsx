@@ -8,10 +8,9 @@ import {
   ViewStyle,
 } from "react-native";
 
-export type ExpandingDotProps = {
-  data: any[];
-  scrollX: Animated.Value;
-  pageWidth: number;
+import { PaginationProps } from "./types";
+
+export interface ExpandingDotProps extends PaginationProps {
   dotSize?: number;
   expandingDotWidth?: number;
   dotMargin?: number;
@@ -20,10 +19,12 @@ export type ExpandingDotProps = {
   inactiveDotColor?: string;
   inactiveDotOpacity?: number;
   dotOpacityExtrapolate?: "clamp" | "extend";
-  style?: StyleProp<ViewStyle>;
-};
+}
 
-const DEFAULTS: Omit<ExpandingDotProps, "data" | "scrollX" | "pageWidth"> = {
+const DEFAULTS: Omit<
+  ExpandingDotProps,
+  keyof Omit<PaginationProps, "horizontal">
+> = {
   dotSize: 10,
   expandingDotWidth: 30,
   dotMargin: 2,
@@ -32,13 +33,17 @@ const DEFAULTS: Omit<ExpandingDotProps, "data" | "scrollX" | "pageWidth"> = {
   inactiveDotColor: "#fff",
   inactiveDotOpacity: 0.75,
   dotOpacityExtrapolate: "extend",
+  horizontal: true,
 };
 
 export default function ExpandingDot(props: ExpandingDotProps) {
   const {
     data,
-    scrollX,
+    offset,
     pageWidth,
+    pageHeight,
+    horizontal,
+    listHorizontal,
     dotSize,
     expandingDotWidth,
     dotMargin,
@@ -68,20 +73,41 @@ export default function ExpandingDot(props: ExpandingDotProps) {
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      {
-        height: dotSize,
-        maxHeight: dotSize,
-        width:
-          (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-          expandingDotWidth +
-          2 * dotMargin,
-        maxWidth:
-          (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-          expandingDotWidth +
-          2 * dotMargin,
-      },
+      horizontal
+        ? {
+            height: dotSize,
+            maxHeight: dotSize,
+            width:
+              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
+              expandingDotWidth +
+              2 * dotMargin,
+            maxWidth:
+              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
+              expandingDotWidth +
+              2 * dotMargin,
+          }
+        : {
+            height:
+              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
+              expandingDotWidth +
+              2 * dotMargin,
+            maxHeight:
+              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
+              expandingDotWidth +
+              2 * dotMargin,
+            width: dotSize,
+            maxWidth: dotSize,
+          },
     ],
-    [dotSize, expandingDotWidth, dotMargin, visibleDots, style, data]
+    [
+      dotSize,
+      expandingDotWidth,
+      dotMargin,
+      visibleDots,
+      style,
+      data,
+      horizontal,
+    ]
   );
 
   const listRef = React.useRef<FlatList>(null);
@@ -90,22 +116,22 @@ export default function ExpandingDot(props: ExpandingDotProps) {
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
       const inputRange = [
-        (index - 1) * pageWidth,
-        index * pageWidth,
-        (index + 1) * pageWidth,
+        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
+        index * (listHorizontal ? pageWidth : pageHeight),
+        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
       ];
 
-      const color = scrollX.interpolate({
+      const color = offset.interpolate({
         inputRange,
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
       });
-      const opacity = scrollX.interpolate({
+      const opacity = offset.interpolate({
         inputRange,
         outputRange: [inactiveDotOpacity, 1, inactiveDotOpacity],
         extrapolate: dotOpacityExtrapolate,
       });
-      const expand = scrollX.interpolate({
+      const expand = offset.interpolate({
         inputRange,
         outputRange: [dotSize, expandingDotWidth, dotSize],
         extrapolate: "clamp",
@@ -116,19 +142,30 @@ export default function ExpandingDot(props: ExpandingDotProps) {
           style={[
             { opacity },
             {
-              width: expand,
-              height: dotSize,
               borderRadius: dotSize / 2,
               backgroundColor: color,
-              marginHorizontal: dotMargin,
               alignSelf: "center",
             },
+            horizontal
+              ? {
+                  width: expand,
+                  height: dotSize,
+                  marginHorizontal: dotMargin,
+                }
+              : {
+                  width: dotSize,
+                  height: expand,
+                  marginVertical: dotMargin,
+                },
           ]}
         />
       );
     },
     [
       pageWidth,
+      pageHeight,
+      horizontal,
+      listHorizontal,
       dotSize,
       expandingDotWidth,
       dotMargin,
@@ -140,18 +177,19 @@ export default function ExpandingDot(props: ExpandingDotProps) {
   );
 
   React.useEffect(() => {
-    scrollX.addListener(({ value }) => {
+    const listenerId = offset.addListener(({ value }) => {
       if (!listRef.current) return;
+
+      const pageIdx = value / (listHorizontal ? pageWidth : pageHeight);
 
       listRef.current.scrollToOffset({
         animated: false,
-        offset: Math.max(
-          0,
-          (value / pageWidth - scrollThreshhold) * fullDotSize
-        ),
+        offset: Math.max(0, (pageIdx - scrollThreshhold) * fullDotSize),
       });
     });
-  }, [pageWidth, scrollThreshhold, fullDotSize]);
+
+    return () => offset.removeListener(listenerId);
+  }, [pageWidth, pageHeight, listHorizontal, scrollThreshhold, fullDotSize]);
 
   return (
     <View style={containerStyle}>
@@ -160,7 +198,7 @@ export default function ExpandingDot(props: ExpandingDotProps) {
         data={data}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        horizontal={true}
+        horizontal={horizontal}
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
