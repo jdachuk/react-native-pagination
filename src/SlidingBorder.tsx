@@ -57,83 +57,76 @@ export default function SlidingBorder(props: SlidingBorderProps) {
 
   const borderSize = React.useMemo(
     () => dotSize + (borderPadding + borderWidth) * 2,
-    [dotSize, borderPadding]
+    [dotSize, borderPadding, borderWidth]
   );
   const scrollThreshhold = React.useMemo(
-    () => Math.round((visibleDots - 1) / 2),
+    () => (visibleDots - 1) / 2,
     [visibleDots]
   );
+
+  const { width, height } = React.useMemo(() => {
+    const length = Math.min(visibleDots, data.length) * borderSize;
+
+    return {
+      width: horizontal ? length : borderSize,
+      height: horizontal ? borderSize : length,
+    };
+  }, [horizontal, dotSize, visibleDots, borderPadding, data]);
 
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      horizontal
-        ? {
-            height: borderSize,
-            maxHeight: borderSize,
-            width: Math.min(visibleDots, data.length) * borderSize,
-            maxWidth: Math.min(visibleDots, data.length) * borderSize,
-          }
-        : {
-            height: Math.min(visibleDots, data.length) * borderSize,
-            maxHeight: Math.min(visibleDots, data.length) * borderSize,
-            width: borderSize,
-            maxWidth: borderSize,
-          },
+      {
+        height: height,
+        maxHeight: height,
+        width: width,
+        maxWidth: width,
+      },
     ],
-    [horizontal, dotSize, visibleDots, borderPadding, style, data]
-  );
-  const dotContainerStyle = React.useMemo<StyleProp<ViewStyle>>(
-    () => ({
-      height: borderSize,
-      width: borderSize,
-      alignItems: "center",
-      justifyContent: "center",
-    }),
-    [borderSize]
+    [width, height, style]
   );
 
   const listRef = React.useRef<FlatList>(null);
   const translate = React.useRef(new Animated.Value(0)).current;
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
+  const inputRange = React.useCallback(
+    (idx: number) => [
+      (idx - 1) * (listHorizontal ? pageWidth : pageHeight),
+      idx * (listHorizontal ? pageWidth : pageHeight),
+      (idx + 1) * (listHorizontal ? pageWidth : pageHeight),
+    ],
+    [listHorizontal, pageWidth, pageHeight]
+  );
 
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
-      const inputRange = [
-        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
-        index * (listHorizontal ? pageWidth : pageHeight),
-        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
-      ];
-
       const color = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
       });
 
       return (
-        <View style={dotContainerStyle}>
+        <View
+          style={{
+            height: borderSize,
+            width: borderSize,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Animated.View
-            style={[
-              {
-                width: dotSize,
-                height: dotSize,
-                borderRadius: dotSize / 2,
-                backgroundColor: color,
-              },
-            ]}
+            style={{
+              width: dotSize,
+              height: dotSize,
+              borderRadius: dotSize / 2,
+              backgroundColor: color,
+            }}
           />
         </View>
       );
     },
-    [
-      pageWidth,
-      pageHeight,
-      listHorizontal,
-      dotSize,
-      activeDotColor,
-      inactiveDotColor,
-    ]
+    [borderSize, dotSize, activeDotColor, inactiveDotColor]
   );
 
   React.useEffect(() => {

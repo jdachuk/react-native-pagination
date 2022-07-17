@@ -66,73 +66,59 @@ export default function ExpandingDot(props: ExpandingDotProps) {
     [dotSize, dotMargin]
   );
   const scrollThreshhold = React.useMemo(
-    () => Math.round((visibleDots - 1) / 2),
+    () => (visibleDots - 1) / 2,
     [visibleDots]
   );
+
+  const { width, height } = React.useMemo(() => {
+    const length =
+      (Math.min(visibleDots, data.length) - 1) * fullDotSize +
+      (2 * dotMargin + expandingDotWidth);
+
+    return {
+      width: horizontal ? length : dotSize,
+      height: horizontal ? dotSize : length,
+    };
+  }, [dotSize, expandingDotWidth, dotMargin, visibleDots, data, horizontal]);
 
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      horizontal
-        ? {
-            height: dotSize,
-            maxHeight: dotSize,
-            width:
-              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-              expandingDotWidth +
-              2 * dotMargin,
-            maxWidth:
-              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-              expandingDotWidth +
-              2 * dotMargin,
-          }
-        : {
-            height:
-              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-              expandingDotWidth +
-              2 * dotMargin,
-            maxHeight:
-              (Math.min(visibleDots, data.length) - 1) * fullDotSize +
-              expandingDotWidth +
-              2 * dotMargin,
-            width: dotSize,
-            maxWidth: dotSize,
-          },
+      {
+        height: height,
+        maxHeight: height,
+        width: width,
+        maxWidth: width,
+      },
     ],
-    [
-      dotSize,
-      expandingDotWidth,
-      dotMargin,
-      visibleDots,
-      style,
-      data,
-      horizontal,
-    ]
+    [width, height, style]
   );
 
   const listRef = React.useRef<FlatList>(null);
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
+  const inputRange = React.useCallback(
+    (idx: number) => [
+      (idx - 1) * (listHorizontal ? pageWidth : pageHeight),
+      idx * (listHorizontal ? pageWidth : pageHeight),
+      (idx + 1) * (listHorizontal ? pageWidth : pageHeight),
+    ],
+    [listHorizontal, pageWidth, pageHeight]
+  );
 
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
-      const inputRange = [
-        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
-        index * (listHorizontal ? pageWidth : pageHeight),
-        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
-      ];
-
       const color = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
       });
       const opacity = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [inactiveDotOpacity, 1, inactiveDotOpacity],
         extrapolate: dotOpacityExtrapolate,
       });
       const expand = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [dotSize, expandingDotWidth, dotSize],
         extrapolate: "clamp",
       });
@@ -145,27 +131,17 @@ export default function ExpandingDot(props: ExpandingDotProps) {
               borderRadius: dotSize / 2,
               backgroundColor: color,
               alignSelf: "center",
+              width: horizontal ? expand : dotSize,
+              height: horizontal ? dotSize : expand,
+              marginHorizontal: horizontal ? dotMargin : undefined,
+              marginVertical: horizontal ? undefined : dotMargin,
             },
-            horizontal
-              ? {
-                  width: expand,
-                  height: dotSize,
-                  marginHorizontal: dotMargin,
-                }
-              : {
-                  width: dotSize,
-                  height: expand,
-                  marginVertical: dotMargin,
-                },
           ]}
         />
       );
     },
     [
-      pageWidth,
-      pageHeight,
       horizontal,
-      listHorizontal,
       dotSize,
       expandingDotWidth,
       dotMargin,

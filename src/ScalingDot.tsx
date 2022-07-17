@@ -66,81 +66,79 @@ export default function ScalingDot(props: ScalingDotProps) {
     [dotSize, dotMargin]
   );
   const scrollThreshhold = React.useMemo(
-    () => Math.round((visibleDots - 1) / 2),
+    () => (visibleDots - 1) / 2,
     [visibleDots]
   );
+
+  const { width, height } = React.useMemo(() => {
+    const length = Math.min(visibleDots, data.length) * fullDotSize;
+
+    return {
+      width: horizontal ? length : dotSize * activeDotScale,
+      height: horizontal ? dotSize * activeDotScale : length,
+    };
+  }, [dotSize, dotMargin, visibleDots, data, horizontal, activeDotScale]);
 
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      horizontal
-        ? {
-            height: dotSize * activeDotScale,
-            maxHeight: dotSize * activeDotScale,
-            width: Math.min(visibleDots, data.length) * fullDotSize,
-            maxWidth: Math.min(visibleDots, data.length) * fullDotSize,
-          }
-        : {
-            height: Math.min(visibleDots, data.length) * fullDotSize,
-            maxHeight: Math.min(visibleDots, data.length) * fullDotSize,
-            width: dotSize * activeDotScale,
-            maxWidth: dotSize * activeDotScale,
-          },
+      {
+        height: height,
+        maxHeight: height,
+        width: width,
+        maxWidth: width,
+      },
     ],
-    [horizontal, dotSize, dotMargin, visibleDots, style, activeDotScale, data]
+    [width, height, style]
   );
 
   const listRef = React.useRef<FlatList>(null);
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
+  const inputRange = React.useCallback(
+    (idx: number) => [
+      (idx - 1) * (listHorizontal ? pageWidth : pageHeight),
+      idx * (listHorizontal ? pageWidth : pageHeight),
+      (idx + 1) * (listHorizontal ? pageWidth : pageHeight),
+    ],
+    [listHorizontal, pageWidth, pageHeight]
+  );
 
   const renderItem = React.useCallback(
     ({ index }: ListRenderItemInfo<any>) => {
-      const inputRange = [
-        (index - 1) * (listHorizontal ? pageWidth : pageHeight),
-        index * (listHorizontal ? pageWidth : pageHeight),
-        (index + 1) * (listHorizontal ? pageWidth : pageHeight),
-      ];
-
       const opacity = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [inactiveDotOpacity, 1, inactiveDotOpacity],
         extrapolate: dotOpacityExtrapolate,
       });
       const scale = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [1, activeDotScale, 1],
         extrapolate: dotScaleExtrapolate,
       });
       const color = offset.interpolate({
-        inputRange,
+        inputRange: inputRange(index),
         outputRange: [inactiveDotColor, activeDotColor, inactiveDotColor],
         extrapolate: "clamp",
       });
 
       return (
         <Animated.View
-          style={[
-            { opacity },
-            { transform: [{ scale }] },
-            {
-              width: dotSize,
-              height: dotSize,
-              borderRadius: dotSize / 2,
-              backgroundColor: color,
-              alignSelf: "center",
-            },
-            horizontal
-              ? { marginHorizontal: dotMargin }
-              : { marginVertical: dotMargin },
-          ]}
+          style={{
+            opacity,
+            transform: [{ scale }],
+            width: dotSize,
+            height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: color,
+            alignSelf: "center",
+            marginHorizontal: horizontal ? dotMargin : undefined,
+            marginVertical: horizontal ? undefined : dotMargin,
+          }}
         />
       );
     },
     [
-      pageWidth,
-      pageHeight,
       horizontal,
-      listHorizontal,
       dotSize,
       dotMargin,
       activeDotColor,

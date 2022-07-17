@@ -50,41 +50,29 @@ export default function SlidingDot(props: SlidingDotProps) {
     [dotSize, dotMargin]
   );
   const scrollThreshhold = React.useMemo(
-    () => Math.round((visibleDots - 1) / 2),
+    () => (visibleDots - 1) / 2,
     [visibleDots]
   );
 
+  const { width, height } = React.useMemo(() => {
+    const length = Math.min(visibleDots, data.length) * fullDotSize;
+
+    return {
+      width: horizontal ? length : dotSize,
+      height: horizontal ? dotSize : length,
+    };
+  }, [dotSize, dotMargin, visibleDots, data, horizontal]);
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      horizontal
-        ? {
-            height: dotSize,
-            maxHeight: dotSize,
-            width: Math.min(visibleDots, data.length) * fullDotSize,
-            maxWidth: Math.min(visibleDots, data.length) * fullDotSize,
-          }
-        : {
-            height: Math.min(visibleDots, data.length) * fullDotSize,
-            maxHeight: Math.min(visibleDots, data.length) * fullDotSize,
-            width: dotSize,
-            maxWidth: dotSize,
-          },
-    ],
-    [horizontal, dotSize, visibleDots, style, data, fullDotSize]
-  );
-  const dotContainerStyle = React.useMemo<StyleProp<ViewStyle>>(
-    () => [
       {
-        height: dotSize,
-        width: dotSize,
-        borderRadius: dotSize / 2,
+        height: height,
+        maxHeight: height,
+        width: width,
+        maxWidth: width,
       },
-      horizontal
-        ? { marginHorizontal: dotMargin }
-        : { marginVertical: dotMargin },
     ],
-    [horizontal, dotSize, dotMargin]
+    [width, height, style]
   );
 
   const listRef = React.useRef<FlatList>(null);
@@ -94,16 +82,18 @@ export default function SlidingDot(props: SlidingDotProps) {
   const renderItem = React.useCallback(
     () => (
       <View
-        style={[
-          dotContainerStyle,
-          {
-            opacity: inactiveDotOpacity,
-            backgroundColor: inactiveDotColor,
-          },
-        ]}
+        style={{
+          height: dotSize,
+          width: dotSize,
+          borderRadius: dotSize / 2,
+          marginHorizontal: horizontal ? dotMargin : undefined,
+          marginVertical: horizontal ? undefined : dotMargin,
+          opacity: inactiveDotOpacity,
+          backgroundColor: inactiveDotColor,
+        }}
       />
     ),
-    [dotContainerStyle, inactiveDotColor, inactiveDotOpacity]
+    [horizontal, dotSize, dotMargin, inactiveDotColor, inactiveDotOpacity]
   );
 
   React.useEffect(() => {
@@ -132,18 +122,18 @@ export default function SlidingDot(props: SlidingDotProps) {
   return (
     <View style={containerStyle}>
       <Animated.View
-        style={[
-          {
-            position: "absolute",
-            transform: [
-              horizontal
-                ? { translateX: translate }
-                : { translateY: translate },
-            ],
-            backgroundColor: slidingDotColor,
-          },
-          dotContainerStyle,
-        ]}
+        style={{
+          position: "absolute",
+          height: dotSize,
+          width: dotSize,
+          borderRadius: dotSize / 2,
+          marginHorizontal: horizontal ? dotMargin : undefined,
+          marginVertical: horizontal ? undefined : dotMargin,
+          backgroundColor: slidingDotColor,
+          transform: [
+            horizontal ? { translateX: translate } : { translateY: translate },
+          ],
+        }}
       />
       <FlatList
         ref={listRef}

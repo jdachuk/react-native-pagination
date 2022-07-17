@@ -10,19 +10,21 @@ import {
   ListRenderItemInfo,
   StyleProp,
   ViewStyle,
+  FlexStyle,
 } from "react-native";
 
 import { PaginationProps } from "./types";
 
-export type PaginationLocation = "top" | "left" | "right" | "bottom";
+export type PaginationPosition = "top" | "left" | "right" | "bottom";
 export type PaginationAlignment = "start" | "center" | "end";
 
 type PagingListPaginationVariables<PagT extends PaginationProps> = {
   component: React.FunctionComponent<PagT>;
   horizontal?: boolean;
   componentProps?: Omit<PagT, keyof Omit<PaginationProps, "style">>;
-  location?: PaginationLocation;
+  position?: PaginationPosition;
   align?: PaginationAlignment;
+  insideList?: boolean;
 };
 
 export type PagingListPagination<PagT extends PaginationProps> = Partial<
@@ -36,32 +38,26 @@ export interface PagingListProps<ItemT, PagT extends PaginationProps<ItemT>>
   pagination?: PagingListPagination<PagT>;
 }
 
-function locationToFlexDirection(
-  location: PaginationLocation
-): "row" | "column" | "row-reverse" | "column-reverse" {
-  switch (location) {
-    case "bottom":
-      return "column";
-    case "top":
-      return "column-reverse";
-    case "left":
-      return "row-reverse";
-    case "right":
-      return "row";
-  }
-}
-
-function paginationAlign(
+function absoluteAlign(
+  pos: PaginationPosition,
   align: PaginationAlignment
-): "flex-end" | "center" | "flex-start" {
-  switch (align) {
-    case "end":
-      return "flex-end";
-    case "center":
-      return "center";
-    case "start":
-      return "flex-start";
-  }
+): {
+  position: "absolute";
+  top?: number;
+  left?: number;
+  right?: number;
+  bottom?: number;
+} {
+  return {
+    position: "absolute",
+    top: pos === "top" || (pos !== "bottom" && align !== "end") ? 0 : undefined,
+    left:
+      pos === "left" || (pos !== "right" && align !== "end") ? 0 : undefined,
+    right:
+      pos === "right" || (pos !== "left" && align !== "start") ? 0 : undefined,
+    bottom:
+      pos === "bottom" || (pos !== "top" && align !== "start") ? 0 : undefined,
+  };
 }
 
 function getPageSizes(style: StyleProp<ViewStyle>): {
@@ -88,6 +84,30 @@ function getPageSizes(style: StyleProp<ViewStyle>): {
   };
 }
 
+const flexDirection: {
+  [K in PaginationPosition]: FlexStyle["flexDirection"];
+} = {
+  bottom: "column",
+  top: "column-reverse",
+  left: "row-reverse",
+  right: "row",
+};
+
+const flexAlignment: {
+  [K in PaginationAlignment]: FlexStyle["alignSelf"];
+} = {
+  end: "flex-end",
+  center: "center",
+  start: "flex-start",
+};
+
+const PAGINATION_DEFAULTS = {
+  horizontal: true,
+  position: "bottom",
+  align: "center",
+  insideList: false,
+};
+
 export default function PagingList<ItemT, PagT extends PaginationProps<ItemT>>(
   props: PagingListProps<ItemT, PagT>
 ) {
@@ -99,37 +119,45 @@ export default function PagingList<ItemT, PagT extends PaginationProps<ItemT>>(
     horizontal,
     style,
     ...listProps
-  } = {
-    ...{ horizontal: false },
-    ...props,
-  };
+  } = React.useMemo(
+    () => ({
+      ...{ horizontal: false },
+      ...props,
+    }),
+    [props]
+  );
   const {
+    component,
+    componentProps,
     horizontal: paginationHorizonal,
-    location,
+    position,
     align,
-  } = {
-    ...{ horizontal: true, location: "bottom", align: "center" },
-    ...pagination,
-  } as Required<PagingListPaginationVariables<PagT>>;
+    insideList,
+  } = React.useMemo(
+    () =>
+      ({
+        ...PAGINATION_DEFAULTS,
+        ...pagination,
+      } as Required<PagingListPaginationVariables<PagT>>),
+    [pagination]
+  );
 
-  const { pageWidth, pageHeight } = getPageSizes(style);
   const contentOffset = React.useRef(new Animated.Value(0)).current;
+  const { pageWidth, pageHeight } = React.useMemo(
+    () => getPageSizes(style),
+    [style]
+  );
 
   const onListScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      horizontal
-        ? Animated.event(
-            [{ nativeEvent: { contentOffset: { x: contentOffset } } }],
-            {
-              useNativeDriver: false,
-            }
-          )(event)
-        : Animated.event(
-            [{ nativeEvent: { contentOffset: { y: contentOffset } } }],
-            {
-              useNativeDriver: false,
-            }
-          )(event);
+      Animated.event(
+        [
+          horizontal
+            ? { nativeEvent: { contentOffset: { x: contentOffset } } }
+            : { nativeEvent: { contentOffset: { y: contentOffset } } },
+        ],
+        { useNativeDriver: false }
+      )(event);
 
       if (undefined !== onScroll) {
         onScroll(event);
@@ -138,33 +166,31 @@ export default function PagingList<ItemT, PagT extends PaginationProps<ItemT>>(
     [horizontal, onScroll]
   );
   const listRenderItem = React.useCallback(
-    (info: ListRenderItemInfo<ItemT>) => (
+    (params: ListRenderItemInfo<ItemT>) => (
       <View
-        style={[
-          {
-            alignItems: "center",
-            justifyContent: "center",
-          },
-          horizontal ? { width: pageWidth } : { height: pageHeight },
-        ]}
+        style={{
+          alignItems: "center",
+          justifyContent: "center",
+          width: pageWidth,
+          height: pageHeight,
+        }}
       >
-        {renderItem !== null && renderItem !== undefined
-          ? renderItem(info)
-          : null}
+        {renderItem ? renderItem(params) : null}
       </View>
     ),
-    [horizontal, pageWidth, pageHeight, renderItem]
+    [pageWidth, pageHeight, renderItem]
   );
 
-  const PaginationComponent =
-    undefined === pagination?.component ? null : pagination.component;
+  const PaginationComponent = undefined === component ? null : component;
 
   const { style: paginationStyle, ...paginationProps } = {
-    ...pagination?.componentProps,
+    ...componentProps,
   };
 
   return (
-    <View style={[{ flexDirection: locationToFlexDirection(location) }]}>
+    <View
+      style={[insideList ? {} : { flexDirection: flexDirection[position] }]}
+    >
       <FlatList
         scrollEventThrottle={16}
         showsHorizontalScrollIndicator={false}
@@ -175,22 +201,28 @@ export default function PagingList<ItemT, PagT extends PaginationProps<ItemT>>(
         renderItem={listRenderItem}
         onScroll={onListScroll}
         horizontal={horizontal}
-        style={[
-          style,
-          horizontal ? { width: pageWidth } : { height: pageHeight },
-        ]}
+        style={[style, { maxWidth: pageWidth, maxHeight: pageHeight }]}
       />
       {PaginationComponent !== null ? (
-        <PaginationComponent
-          {...(paginationProps as PagT)}
-          style={[paginationStyle, { alignSelf: paginationAlign(align) }]}
-          data={data}
-          offset={contentOffset}
-          pageWidth={pageWidth}
-          pageHeight={pageHeight}
-          horizontal={paginationHorizonal}
-          listHorizontal={horizontal}
-        />
+        <View
+          style={[
+            insideList
+              ? absoluteAlign(position, align)
+              : { alignSelf: flexAlignment[align] },
+            { alignItems: "center", justifyContent: "center" },
+          ]}
+        >
+          <PaginationComponent
+            {...(paginationProps as PagT)}
+            data={data}
+            offset={contentOffset}
+            pageWidth={pageWidth}
+            pageHeight={pageHeight}
+            horizontal={paginationHorizonal}
+            listHorizontal={horizontal}
+            style={paginationStyle}
+          />
+        </View>
       ) : null}
     </View>
   );

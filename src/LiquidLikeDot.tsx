@@ -27,6 +27,9 @@ const DEFAULTS: Omit<
   horizontal: true,
 };
 
+const scaleInputRange = [0, 0.5, 1];
+const keyExtractor = (_: any, index: any) => index.toString();
+
 export default function LiquidLikeDot(props: LiquidLikeDotProps) {
   const {
     data,
@@ -57,54 +60,53 @@ export default function LiquidLikeDot(props: LiquidLikeDotProps) {
     [visibleDots]
   );
 
+  const { width, height } = React.useMemo(() => {
+    const length = Math.min(visibleDots, data.length) * fullDotSize;
+
+    return {
+      width: horizontal ? length : dotSize,
+      height: horizontal ? dotSize : length,
+    };
+  }, [dotSize, dotMargin, visibleDots, data, horizontal]);
+
   const containerStyle = React.useMemo<StyleProp<ViewStyle>>(
     () => [
       style,
-      horizontal
-        ? {
-            height: dotSize,
-            maxHeight: dotSize,
-            width: Math.min(visibleDots, data.length) * fullDotSize,
-            maxWidth: Math.min(visibleDots, data.length) * fullDotSize,
-          }
-        : {
-            height: Math.min(visibleDots, data.length) * fullDotSize,
-            maxHeight: Math.min(visibleDots, data.length) * fullDotSize,
-            width: dotSize,
-            maxWidth: dotSize,
-          },
-    ],
-    [horizontal, dotSize, visibleDots, style, data, fullDotSize]
-  );
-  const dotContainerStyle = React.useMemo<StyleProp<ViewStyle>>(
-    () => [
       {
-        height: dotSize,
-        width: dotSize,
-        borderRadius: dotSize / 2,
+        height: height,
+        maxHeight: height,
+        width: width,
+        maxWidth: width,
       },
-      horizontal
-        ? { marginHorizontal: dotMargin }
-        : { marginVertical: dotMargin },
     ],
-    [dotSize, dotMargin, horizontal]
+    [width, height, style]
   );
 
   const listRef = React.useRef<FlatList>(null);
   const translate = React.useRef(new Animated.Value(0)).current;
   const scale = React.useRef(new Animated.Value(0)).current;
-  const keyExtractor = React.useCallback((_, index) => index.toString(), []);
+  const scaleValue = React.useCallback(
+    (isForX: boolean) =>
+      horizontal && isForX
+        ? (dotSize + 2 * dotMargin) / dotSize
+        : slidingDotMinHeight / dotSize,
+    [horizontal, dotSize, dotMargin, slidingDotMinHeight]
+  );
+  const scaleXOutputRange = React.useMemo(() => [1, scaleValue(true), 1], []);
+  const scaleYOutputRange = React.useMemo(() => [1, scaleValue(false), 1], []);
 
   const renderItem = React.useCallback(
     () => (
       <View
-        style={[
-          dotContainerStyle,
-          {
-            opacity: inactiveDotOpacity,
-            backgroundColor: inactiveDotColor,
-          },
-        ]}
+        style={{
+          height: dotSize,
+          width: dotSize,
+          borderRadius: dotSize / 2,
+          marginHorizontal: horizontal ? dotMargin : undefined,
+          marginVertical: horizontal ? undefined : dotMargin,
+          opacity: inactiveDotOpacity,
+          backgroundColor: inactiveDotColor,
+        }}
       />
     ),
     [dotSize, dotMargin, horizontal, inactiveDotColor, inactiveDotOpacity]
@@ -138,46 +140,31 @@ export default function LiquidLikeDot(props: LiquidLikeDotProps) {
   return (
     <View style={containerStyle}>
       <Animated.View
-        style={[
-          dotContainerStyle,
-          {
-            position: "absolute",
-            transform: horizontal
-              ? [
-                  { translateX: translate },
-                  {
-                    scaleY: scale.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: [1, slidingDotMinHeight / dotSize, 1],
-                    }),
-                  },
-                  {
-                    scaleX: scale.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: [1, (dotSize + 2 * dotMargin) / dotSize, 1],
-                      extrapolate: "clamp",
-                    }),
-                  },
-                ]
-              : [
-                  { translateY: translate },
-                  {
-                    scaleX: scale.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: [1, slidingDotMinHeight / dotSize, 1],
-                    }),
-                  },
-                  {
-                    scaleY: scale.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: [1, (dotSize + 2 * dotMargin) / dotSize, 1],
-                      extrapolate: "clamp",
-                    }),
-                  },
-                ],
-            backgroundColor: slidingDotColor,
-          },
-        ]}
+        style={{
+          position: "absolute",
+          height: dotSize,
+          width: dotSize,
+          borderRadius: dotSize / 2,
+          marginHorizontal: horizontal ? dotMargin : undefined,
+          marginVertical: horizontal ? undefined : dotMargin,
+          backgroundColor: slidingDotColor,
+          transform: [
+            horizontal ? { translateX: translate } : { translateY: translate },
+            {
+              scaleX: scale.interpolate({
+                inputRange: scaleInputRange,
+                outputRange: scaleXOutputRange,
+                extrapolate: "clamp",
+              }),
+            },
+            {
+              scaleY: scale.interpolate({
+                inputRange: scaleInputRange,
+                outputRange: scaleYOutputRange,
+              }),
+            },
+          ],
+        }}
       />
       <FlatList
         ref={listRef}

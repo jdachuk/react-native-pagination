@@ -2,8 +2,8 @@ import * as React from "react";
 import { ListRenderItemInfo, StyleSheet, View } from "react-native";
 
 import PagingList from "./src/PagingList";
-import ExpandingDot from './src/ExpandingDot';
-import LiquidLikeDot from './src/LiquidLikeDot';
+import ExpandingDot from "./src/ExpandingDot";
+import LiquidLikeDot from "./src/LiquidLikeDot";
 import ScalingDot from "./src/ScalingDot";
 import SlidingBorder from "./src/SlidingBorder";
 import SlidingDot from "./src/SlidingDot";
@@ -26,9 +26,12 @@ export default function App() {
   const keyExtractor = React.useCallback((_, index) => index.toString(), []);
   const renderItem = ({ item }: ListRenderItemInfo<string>) => (
     <View
-      style={[{
-        backgroundColor: item,
-      }, StyleSheet.absoluteFill]}
+      style={[
+        {
+          backgroundColor: item,
+        },
+        StyleSheet.absoluteFill,
+      ]}
     />
   );
 
@@ -38,9 +41,16 @@ export default function App() {
         data={COLORS}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        pagination={{ component: SlidingDot, horizontal: false, location: "right" }}
-        style={{ maxHeight: 300, maxWidth: 300, width: 300 }}
-        horizontal={false}
+        pagination={{
+          component: SlidingDot,
+          horizontal: false,
+          insideList: true,
+          componentProps: { style: { marginBottom: 5 } },
+          position: "left",
+          align: "end"
+        }}
+        style={{ width: 300, height: 300 }}
+        horizontal={true}
       />
     </View>
   );
@@ -51,6 +61,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#525252",
     alignItems: "center",
+    justifyContent: "center",
     paddingTop: 40,
   },
 });
